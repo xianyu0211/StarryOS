@@ -1,0 +1,102 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: nightly
+        components: rust-src, llvm-tools-preview
+        targets: aarch64-unknown-none
+        
+    - name: Install cross-compilation tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu
+        
+    - name: Build kernel
+      run: |
+        make kernel
+        
+    - name: Build drivers
+      run: |
+        make drivers
+        
+    - name: Build AI module
+      run: |
+        make ai
+        
+    - name: Build applications
+      run: |
+        make apps
+        
+    - name: Run tests
+      run: |
+        make test
+        
+    - name: Run benchmarks
+      run: |
+        make bench
+        
+    - name: Check code formatting
+      run: |
+        make fmt
+        
+    - name: Check code
+      run: |
+        make check
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: kernel-build
+        path: |
+          kernel/target/aarch64-unknown-none/release/kernel
+          kernel8.img
+
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run cargo audit
+      uses: actions-rs/audit-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Run clippy
+      uses: actions-rs/clippy-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        args: --all-targets --all-features
+
+  documentation:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Generate documentation
+      run: |
+        cargo doc --no-deps --document-private-items
+        
+    - name: Upload documentation
+      uses: actions/upload-artifact@v4
+      with:
+        name: documentation
+        path: target/doc/

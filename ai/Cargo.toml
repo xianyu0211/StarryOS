@@ -1,0 +1,37 @@
+[package]
+name = "starry-ai"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# 核心依赖
+starry-kernel = { path = "../kernel" }
+starry-drivers = { path = "../drivers" }
+
+# 数学计算
+nalgebra = "0.32"
+
+# 图像处理
+image = "0.24"
+
+# AI推理框架
+tract-core = "0.18"
+tract-onnx = "0.18"
+
+# 硬件加速
+opencl = "0.2"
+
+[dev-dependencies]
+
+[features]
+default = ["yolo-v8", "npu-acceleration"]
+yolo-v8 = []
+npu-acceleration = []
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "s"

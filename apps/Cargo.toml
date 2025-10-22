@@ -1,0 +1,31 @@
+[package]
+name = "starry-apps"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# 核心依赖
+starry-kernel = { path = "../kernel" }
+starry-drivers = { path = "../drivers" }
+starry-ai = { path = "../ai" }
+
+# 应用框架
+embedded-graphics = "0.7"
+
+# 工具库
+heapless = "0.7"
+
+[dev-dependencies]
+
+[features]
+default = ["object-detection", "system-tools"]
+object-detection = []
+system-tools = []
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "s"

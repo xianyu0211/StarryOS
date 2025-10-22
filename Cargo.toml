@@ -1,0 +1,33 @@
+[workspace]
+members = [
+    "kernel",
+    "drivers",
+    "ai",
+    "apps",
+    "tests"
+]
+
+[workspace.dependencies]
+# 核心依赖
+cortex-a = "7.3"
+bare-metal = "1.0"
+bitflags = "2.0"
+
+# 嵌入式相关
+embedded-hal = "1.0"
+nb = "1.0"
+
+# 工具链
+cargo-binutils = "0.3"
+
+# 测试相关
+criterion = "0.5"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "s"
+codegen-units = 1

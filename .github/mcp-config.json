@@ -1,0 +1,80 @@
+{
+  "mcp_server": {
+    "name": "starryos-github-mcp",
+    "version": "1.0.0",
+    "description": "StarryOS项目的GitHub MCP服务器配置",
+    "capabilities": {
+      "repository_management": true,
+      "issue_tracking": true,
+      "pull_request_management": true,
+      "ci_cd_integration": true,
+      "release_management": true
+    },
+    "endpoints": {
+      "repository": "https://api.github.com/repos/{owner}/{repo}",
+      "issues": "https://api.github.com/repos/{owner}/{repo}/issues",
+      "pulls": "https://api.github.com/repos/{owner}/{repo}/pulls",
+      "workflows": "https://api.github.com/repos/{owner}/{repo}/actions/workflows"
+    },
+    "webhooks": {
+      "push_events": true,
+      "pull_request_events": true,
+      "issue_events": true,
+      "workflow_run_events": true
+    },
+    "automation": {
+      "auto_label_issues": true,
+      "auto_assign_reviewers": true,
+      "auto_merge_dependabot": true,
+      "auto_deploy_releases": true
+    }
+  },
+  "repository": {
+    "name": "StarryOS",
+    "description": "基于Rust的AIoT操作系统内核，专为香橙派AIpro 20T等高端算力SoC芯片设计",
+    "topics": ["rust", "operating-system", "embedded", "aiot", "kernel", "arm", "npu"],
+    "visibility": "public",
+    "has_issues": true,
+    "has_projects": false,
+    "has_wiki": false,
+    "has_downloads": true,
+    "auto_init": false
+  },
+  "workflow_templates": {
+    "rust_ci": {
+      "name": "Rust CI",
+      "file": ".github/workflows/ci.yml",
+      "on": ["push", "pull_request"],
+      "jobs": ["build", "test", "security_scan", "documentation"]
+    },
+    "release": {
+      "name": "Release",
+      "file": ".github/workflows/release.yml",
+      "on": ["push"],
+      "branches": ["main"],
+      "jobs": ["build_release", "create_release", "deploy"]
+    }
+  },
+  "issue_templates": {
+    "bug_report": ".github/ISSUE_TEMPLATE/bug_report.md",
+    "feature_request": ".github/ISSUE_TEMPLATE/feature_request.md"
+  },
+  "code_review": {
+    "required_approvals": 1,
+    "dismiss_stale_reviews": true,
+    "require_code_owner_reviews": false,
+    "required_status_checks": ["build", "test"],
+    "restrictions": null
+  },
+  "branch_protection": {
+    "enabled": true,
+    "required_status_checks": ["build", "test"],
+    "enforce_admins": false,
+    "required_pull_request_reviews": {
+      "required_approving_review_count": 1,
+      "dismiss_stale_reviews": true,
+      "require_code_owner_reviews": false
+    },
+    "restrictions": null
+  }
+}
