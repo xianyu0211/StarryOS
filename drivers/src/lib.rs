@@ -97,7 +97,25 @@ impl DriverManager {
     }
     
     /// 注册驱动
-    pub fn register_driver<T: Driver + 'static>(&mut self, driver: T) {
+    pub fn register_driver<T: Driver + 'static>(&mut self, driver: T) -> Result<(), DriverError> {
+        self.drivers.register(Box::new(driver))
+            .map_err(|_| DriverError::InvalidParameter)
+    }
+    
+    /// 获取驱动数量
+    pub fn driver_count(&self) -> usize {
+        self.drivers.count()
+    }
+    
+    /// 初始化所有驱动
+    pub fn init_all(&mut self) -> Result<(), DriverError> {
+        self.drivers.init_all()
+    }
+    
+    /// 按名称查找驱动
+    pub fn find_driver(&self, name: &str) -> Option<&dyn Driver> {
+        self.drivers.find_by_name(name)
+    }
         self.drivers.register(driver);
     }
     

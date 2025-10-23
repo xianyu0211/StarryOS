@@ -9,10 +9,26 @@
 use core::panic::PanicInfo;
 use core::arch::asm;
 
+// 内核模块
+pub mod cpu;
+pub mod mmu;
+pub mod gic;
+
 /// 内核初始化
 pub fn init() {
     // 初始化串口输出
     init_uart();
+    
+    // 初始化内存管理单元
+    unsafe {
+        mmu::init();
+    }
+    
+    // 初始化CPU核心管理
+    cpu::init();
+    
+    // 初始化中断控制器
+    gic::init();
     
     // 初始化内存管理
     init_memory();
