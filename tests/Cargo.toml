@@ -1,19 +1,85 @@
 [package]
 name = "starry-tests"
-version = "0.1.0"
-edition = "2021"
+version = "1.0.0"
+edition = "2025"
+description = "RK3588综合测试套件 - 包含性能基准测试、集成测试和系统验证"
+authors = ["Starry OS Team"]
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/starry-os/starry"
+readme = "README.md"
+keywords = ["embedded", "os", "testing", "benchmark", "no-std"]
+categories = ["embedded", "os", "no-std"]
+
+[features]
+default = ["std", "full_benchmarks"]
+std = ["starry-kernel/std", "starry-drivers/std", "starry-ai/std", "starry-apps/std"]
+full_benchmarks = ["criterion/real_time", "criterion/html_reports"]
+minimal = []  # 最小测试配置，用于CI
+npu_tests = ["starry-drivers/npu", "starry-ai/npu"]  # NPU相关测试
+network_tests = ["starry-drivers/network", "starry-apps/network"]  # 网络测试
+gui_tests = ["starry-drivers/gpu", "starry-apps/gui"]  # 图形界面测试
+stress_tests = []  # 压力测试
+security_tests = ["starry-kernel/security"]  # 安全测试
 
 [dependencies]
 # 核心依赖
-starry-kernel = { path = "../kernel" }
-starry-drivers = { path = "../drivers" }
-starry-ai = { path = "../ai" }
-starry-apps = { path = "../apps" }
+starry-kernel = { path = "../kernel", version = "1.0", default-features = false }
+starry-drivers = { path = "../drivers", version = "1.0", default-features = false }
+starry-ai = { path = "../ai", version = "1.0", default-features = false }
+starry-apps = { path = "../apps", version = "1.0", default-features = false }
 
 # 测试框架
-criterion = { workspace = true }
+criterion = { workspace = true, optional = true }
+proptest = { workspace = true, optional = true }
+
+# 嵌入式测试支持
+embedded-hal-mock = { workspace = true, optional = true }
+embedded-time = { workspace = true }
+
+# 工具库
+heapless = { workspace = true }
+bitflags = { workspace = true }
+log = { workspace = true }
+arrayvec = { workspace = true }
+
+# 数值计算
+libm = { workspace = true }
+micromath = { workspace = true, optional = true }
+
+# 序列化（用于测试结果输出）
+serde = { workspace = true, optional = true, features = ["derive"] }
+postcard = { workspace = true, optional = true }
 
 [dev-dependencies]
+# 标准库支持（用于host测试）
+std = { package = "rustc-std-workspace-std", version = "1.0.0" }
+
+# 测试工具
+criterion = { workspace = true }
+proptest = { workspace = true }
+
+# 模拟和mock
+embedded-hal-mock = { workspace = true }
+
+# 调试工具
+panic-halt = "0.2.0"
+panic-semihosting = "0.5.3"
+
+[[test]]
+name = "kernel_basic"
+harness = true
+
+[[test]]
+name = "driver_smoke"
+harness = true
+
+[[test]]
+name = "ai_integration"
+harness = true
+
+[[test]]
+name = "system_integration"
+harness = true
 
 [[bench]]
 name = "memory_bench"
@@ -27,10 +93,75 @@ harness = false
 name = "ai_bench"
 harness = false
 
+[[bench]]
+name = "driver_bench"
+harness = false
+
+[[bench]]
+name = "filesystem_bench"
+harness = false
+
+[[bench]]
+name = "network_bench"
+harness = false
+
+[[bench]]
+name = "security_bench"
+harness = false
+
+# 示例和演示
+[[example]]
+name = "basic_demo"
+required-features = ["std"]
+
+[[example]]
+name = "ai_demo"
+required-features = ["std", "npu_tests"]
+
+[[example]]
+name = "benchmark_demo"
+required-features = ["std", "full_benchmarks"]
+
+[package.metadata.ci]
+test-timeout = 1800  # 30分钟超时
+required-features = ["std", "minimal"]
+skip-benches = false
+
+[package.metadata.docs.rs]
+all-features = true
+targets = ["x86_64-unknown-linux-gnu"]
+
 [profile.dev]
 panic = "abort"
+debug = true
+debug-assertions = true
+overflow-checks = true
+incremental = true
 
 [profile.release]
 panic = "abort"
 lto = true
-opt-level = "s"
+opt-level = "s"  # 优化大小
+codegen-units = 1
+debug = false
+debug-assertions = false
+overflow-checks = false
+incremental = false
+
+[profile.bench]
+panic = "abort"
+lto = true
+opt-level = 3  # 基准测试使用性能优化
+debug = false
+debug-assertions = false
+overflow-checks = false
+incremental = false
+debuginfo = 0
+
+[profile.test]
+panic = "abort"
+opt-level = 1
+debug = true
+debug-assertions = true
+overflow-checks = true
+incremental = true

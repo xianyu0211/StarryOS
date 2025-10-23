@@ -1,112 +1,153 @@
 # StarryOS Makefile
+# 完整的构建和部署管理
 
-# 工具链配置
+# 配置参数
 TARGET = aarch64-unknown-none
-RUST_TARGET = target/$(TARGET)/release/kernel
-KERNEL = kernel/target/$(TARGET)/release/kernel
-
-# 构建工具
 CARGO = cargo
-OBJCOPY = rust-objcopy
-QEMU = qemu-system-aarch64
+RUSTC = rustc
+BUILD_MODE = release
+KERNEL_IMAGE = kernel8.img
+DEPLOY_DIR = deploy
+IMAGE_DIR = $(DEPLOY_DIR)/image
+CONFIG_FILE = deploy-config.toml
 
-# 构建标志
-BUILD_FLAGS = --target $(TARGET) --release
+# 构建目标
+.PHONY: all build clean deploy test bench doc
 
-.PHONY: all kernel drivers ai apps clean flash boot test
+# 默认目标
+all: build
 
-all: kernel drivers ai apps
+# 构建整个系统
+build: build-kernel build-drivers build-ai build-apps
 
 # 构建内核
-kernel:
+build-kernel:
 	@echo "构建内核..."
-	cd kernel && $(CARGO) build $(BUILD_FLAGS)
+	cd kernel && $(CARGO) build --$(BUILD_MODE)
 
 # 构建驱动模块
-drivers:
+build-drivers:
 	@echo "构建驱动模块..."
-	cd drivers && $(CARGO) build $(BUILD_FLAGS)
+	cd drivers && $(CARGO) build --$(BUILD_MODE) --features "audio environmental communication auxiliary npu"
 
 # 构建AI模块
-ai:
+build-ai:
 	@echo "构建AI模块..."
-	cd ai && $(CARGO) build $(BUILD_FLAGS)
+	cd ai && $(CARGO) build --$(BUILD_MODE) --features "yolo_v8 speech npu optimization"
 
-# 构建应用
-apps:
-	@echo "构建应用模块..."
-	cd apps && $(CARGO) build $(BUILD_FLAGS)
+# 构建应用程序
+build-apps:
+	@echo "构建应用程序..."
+	cd apps && $(CARGO) build --$(BUILD_MODE)
 
-# 清理构建
+# 清理构建文件
 clean:
 	@echo "清理构建文件..."
-	cd kernel && $(CARGO) clean
-	cd drivers && $(CARGO) clean
-	cd ai && $(CARGO) clean
-	cd apps && $(CARGO) clean
-	rm -f kernel8.img
-
-# 生成内核镜像
-kernel8.img: kernel
-	@echo "生成内核镜像..."
-	$(OBJCOPY) $(KERNEL) --strip-all -O binary kernel8.img
-
-# 烧录到开发板
-flash: kernel8.img
-	@echo "烧录内核到开发板..."
-	# 这里需要根据具体开发板配置烧录命令
-	@echo "请配置具体的烧录工具和命令"
-
-# 启动QEMU模拟器
-boot: kernel8.img
-	@echo "启动QEMU模拟器..."
-	$(QEMU) -M virt -cpu cortex-a72 -smp 4 -m 2G \
-		-kernel kernel8.img \
-		-serial stdio \
-		-device virtio-gpu-pci \
-		-device virtio-net,netdev=net0 \
-		-netdev user,id=net0
+	$(CARGO) clean
+	rm -rf $(DEPLOY_DIR)
 
 # 运行测试
-test:
+test: unit-test integration-test
+
+# 单元测试
+unit-test:
 	@echo "运行单元测试..."
-	cd kernel && $(CARGO) test
-	cd drivers && $(CARGO) test
-	cd ai && $(CARGO) test
-	cd apps && $(CARGO) test
+	$(CARGO) test --workspace
+
+# 集成测试
+integration-test:
+	@echo "运行集成测试..."
+	$(CARGO) test --package apps --test integration
 
 # 性能测试
 bench:
 	@echo "运行性能测试..."
-	cd tests && $(CARGO) bench
+	$(CARGO) bench --workspace
 
-# 格式化代码
-fmt:
-	$(CARGO) fmt --all
+# 生成文档
+doc:
+	@echo "生成文档..."
+	$(CARGO) doc --workspace --no-deps
 
-# 代码检查
-check:
-	$(CARGO) check --all-targets
+# 部署系统
+deploy: build create-image
+	@echo "系统部署完成"
 
-# 交叉编译工具链安装
-install-toolchain:
-	@echo "安装交叉编译工具链..."
-	rustup target add $(TARGET)
-	rustup component add rust-src
-	rustup component add llvm-tools-preview
+# 创建部署镜像
+create-image:
+	@echo "创建部署镜像..."
+	mkdir -p $(IMAGE_DIR)/{boot,bin,lib,config,etc}
+	
+	# 复制内核
+	cp target/$(TARGET)/$(BUILD_MODE)/kernel $(IMAGE_DIR)/boot/$(KERNEL_IMAGE)
+	
+	# 复制应用程序
+	cp target/$(TARGET)/$(BUILD_MODE)/apps $(IMAGE_DIR)/bin/starryos-app
+	
+	# 复制配置文件
+	cp $(CONFIG_FILE) $(IMAGE_DIR)/config/
+	cp scripts/deploy-voice-ai.sh $(IMAGE_DIR)/
+	
+	# 创建启动脚本
+	echo '# StarryOS 启动脚本' > $(IMAGE_DIR)/boot/boot.scr
+	echo 'setenv bootargs "console=ttyS2,1500000 root=/dev/mmcblk0p2 rw rootwait"' >> $(IMAGE_DIR)/boot/boot.scr
+	echo 'load mmc 0:1 0x1000000 boot/$(KERNEL_IMAGE)' >> $(IMAGE_DIR)/boot/boot.scr
+	echo 'booti 0x1000000 - 0x2000000' >> $(IMAGE_DIR)/boot/boot.scr
+	
+	@echo "部署镜像创建完成: $(IMAGE_DIR)"
 
-help:
+# 快速部署到RK3588
+rk3588-deploy: build create-image
+	@echo "部署到RK3588设备..."
+	@if [ -z "$(DEVICE)" ]; then \
+		echo "请指定目标设备: make rk3588-deploy DEVICE=/dev/sdX"; \
+		exit 1; \
+	fi
+	sudo ./scripts/deploy-voice-ai.sh $(DEVICE)
+
+# 运行语音交互演示
+voice-demo: build
+	@echo "运行语音交互演示..."
+	cd apps && $(CARGO) run --$(BUILD_MODE) --features "voice-interaction"
+
+# 运行多模态融合演示
+multimodal-demo: build
+	@echo "运行多模态融合演示..."
+	cd apps && $(CARGO) run --$(BUILD_MODE) --features "multimodal-fusion"
+
+# 运行AI性能测试
+ai-benchmark: build
+	@echo "运行AI性能测试..."
+	cd tests && $(CARGO) run --$(BUILD_MODE) --bin ai_bench
+
+# 系统信息
+info:
+	@echo "=== StarryOS 系统信息 ==="
+	@echo "目标架构: $(TARGET)"
+	@echo "构建模式: $(BUILD_MODE)"
+	@echo "内核镜像: $(KERNEL_IMAGE)"
+	@echo "部署目录: $(DEPLOY_DIR)"
+	@echo ""
 	@echo "可用命令:"
-	@echo "  all        - 构建所有模块"
-	@echo "  kernel     - 构建内核"
-	@echo "  drivers    - 构建驱动模块"
-	@echo "  ai         - 构建AI模块"
-	@echo "  apps       - 构建应用模块"
-	@echo "  clean      - 清理构建文件"
-	@echo "  flash      - 烧录到开发板"
-	@echo "  boot       - 启动QEMU模拟器"
-	@echo "  test       - 运行测试"
-	@echo "  bench      - 性能测试"
-	@echo "  fmt        - 格式化代码"
-	@echo "  check      - 代码检查"
-	@echo "  install-toolchain - 安装工具链"
+	@echo "  make build        - 构建整个系统"
+	@echo "  make test         - 运行所有测试"
+	@echo "  make deploy       - 创建部署镜像"
+	@echo "  make voice-demo   - 运行语音交互演示"
+	@echo "  make clean        - 清理构建文件"
+
+# 帮助信息
+help:
+	@echo "StarryOS 构建系统"
+	@echo ""
+	@echo "目标平台: RK3588 (AArch64)"
+	@echo "功能特性:"
+	@echo "  - 语音交互系统"
+	@echo "  - 多模态AI融合"
+	@echo "  - YOLO-v8目标识别"
+	@echo "  - NPU硬件加速"
+	@echo ""
+	@echo "使用: make [目标]"
+	@echo "运行 'make info' 查看详细信息"
+
+# 默认目标
+.DEFAULT_GOAL := help

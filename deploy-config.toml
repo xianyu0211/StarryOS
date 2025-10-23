@@ -1,0 +1,64 @@
+# StarryOS 部署配置文件
+
+[general]
+name = "StarryOS"
+version = "0.1.0"
+description = "基于Rust的嵌入式AIoT操作系统内核，支持RK3588 NPU加速和语音交互"
+
+[targets]
+# 支持的硬件平台
+qemu = { arch = "aarch64", cpu = "cortex-a72", memory = "2G" }
+orangepi-aipro = { arch = "aarch64", cpu = "cortex-a76", memory = "4G", npu = true }
+raspberry-pi-4 = { arch = "aarch64", cpu = "cortex-a72", memory = "2G" }
+rockchip-rk3588 = { arch = "aarch64", cpu = "cortex-a76", memory = "8G", npu = true, gpu = true, big_little = true, voice_interaction = true }
+
+[build]
+# 构建配置
+kernel_image = "kernel8.img"
+entry_point = "0x80000"
+stack_size = "64K"
+heap_size = "2M"
+ai_model_memory = "64M"
+
+[features]
+# 功能特性
+ai_acceleration = true
+sensor_support = true
+network_stack = true
+file_system = true
+voice_interaction = true
+multimodal_fusion = true
+real_time_processing = true
+
+[voice]
+# 语音交互配置
+wake_word = "小星"
+language = "中文"
+sample_rate = 16000
+channels = 1
+vad_threshold = 0.8
+
+[ai]
+# AI模型配置
+yolo_v8_model = "models/yolov8n.rknn"
+speech_model = "models/speech_recognition.rknn"
+tts_model = "models/text_to_speech.rknn"
+confidence_threshold = 0.25
+nms_threshold = 0.45
+
+[deployment]
+# 部署配置
+qemu_port = 1234
+gdb_port = 1235
+serial_port = "stdio"
+network_port = 8080
+web_interface = true
+
+[testing]
+# 测试配置
+unit_tests = true
+integration_tests = true
+performance_tests = true
+hardware_tests = true
+voice_tests = true
+ai_tests = true

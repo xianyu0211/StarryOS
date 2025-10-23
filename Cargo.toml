@@ -1,33 +1,70 @@
 [workspace]
 members = [
     "kernel",
-    "drivers",
+    "drivers", 
     "ai",
     "apps",
     "tests"
 ]
 
+resolver = "2"
+
 [workspace.dependencies]
-# 核心依赖
+# 核心嵌入式依赖
 cortex-a = "7.3"
 bare-metal = "1.0"
 bitflags = "2.0"
 
-# 嵌入式相关
+# 嵌入式HAL
 embedded-hal = "1.0"
 nb = "1.0"
 
+# 内存管理
+buddy_system_allocator = "0.9"
+
+# 日志系统
+log = "0.4"
+uart_16550 = "0.2"
+
+# 同步原语
+spin = "0.9"
+
+# 数学计算
+nalgebra = "0.32"
+
+# AI推理
+tract-core = "0.18"
+tract-onnx = "0.18"
+
+# 传感器驱动
+dht-sensor = "0.4"
+bh1750 = "0.2"
+mpu6050 = "0.4"
+
+# 显示驱动
+ssd1306 = "0.8"
+
+# 通信驱动
+bluer = "0.14"
+
 # 工具链
 cargo-binutils = "0.3"
+objcopy = "0.2"
 
 # 测试相关
 criterion = "0.5"
 
 [profile.dev]
 panic = "abort"
+opt-level = 0
 
 [profile.release]
 panic = "abort"
 lto = true
 opt-level = "s"
 codegen-units = 1
+
+[profile.bench]
+panic = "abort"
+opt-level = 3
+lto = true
