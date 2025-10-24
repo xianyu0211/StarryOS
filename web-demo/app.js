@@ -1,4 +1,5 @@
 // RK3588 AIoT系统监控面板 - 前端JavaScript
+// 优化版本 - 性能提升和用户体验改进
 
 class RK3588Monitor {
     constructor() {
@@ -6,6 +7,10 @@ class RK3588Monitor {
         this.isConnected = false;
         this.systemState = null;
         this.aiInferenceInterval = null;
+        this.lastUpdateTime = 0;
+        this.updateThrottle = 500; // 500ms更新节流
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 10;
         this.init();
     }
     
@@ -35,6 +40,12 @@ class RK3588Monitor {
             return;
         }
         
+        // 检查重连次数限制
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.warn('达到最大重连次数，停止重连');
+            return;
+        }
+        
         try {
             // 动态获取WebSocket地址，支持部署环境
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -42,12 +53,15 @@ class RK3588Monitor {
             const port = window.location.port ? `:${window.location.port}` : '';
             const wsUrl = `${protocol}//${host}${port}/ws`;
             
+            console.log('正在连接WebSocket:', wsUrl);
             this.ws = new WebSocket(wsUrl);
             
             this.ws.onopen = () => {
                 console.log('WebSocket连接成功');
                 this.isConnected = true;
+                this.reconnectAttempts = 0; // 重置重连计数
                 this.updateConnectionStatus(true);
+                this.showNotification('系统连接成功', 'success');
             };
             
             this.ws.onmessage = (event) => {
@@ -59,13 +73,17 @@ class RK3588Monitor {
                 }
             };
             
-            this.ws.onclose = () => {
-                console.log('WebSocket连接断开');
+            this.ws.onclose = (event) => {
+                console.log('WebSocket连接断开，代码:', event.code, '原因:', event.reason);
                 this.isConnected = false;
                 this.updateConnectionStatus(false);
                 
-                // 5秒后尝试重连
-                setTimeout(() => this.connectWebSocket(), 5000);
+                // 指数退避重连策略
+                const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+                this.reconnectAttempts++;
+                
+                console.log(`将在 ${delay}ms 后尝试重连 (尝试次数: ${this.reconnectAttempts})`);
+                setTimeout(() => this.connectWebSocket(), delay);
             };
             
             this.ws.onerror = (error) => {
@@ -132,40 +150,131 @@ class RK3588Monitor {
         `;
     }
     
-    // 更新仪表板
+    // 更新仪表板（带节流控制）
     updateDashboard() {
         if (!this.systemState) return;
         
-        this.updateCPUStatus();
-        this.updateMemoryStatus();
-        this.updateAIStatus();
-        this.updateDriverStatus();
+        // 节流控制：避免过于频繁的DOM更新
+        const now = Date.now();
+        if (now - this.lastUpdateTime < this.updateThrottle) {
+            return;
+        }
+        this.lastUpdateTime = now;
+        
+        // 使用requestAnimationFrame优化性能
+        requestAnimationFrame(() => {
+            this.updateCPUStatus();
+            this.updateMemoryStatus();
+            this.updateAIStatus();
+            this.updateDriverStatus();
+            this.updatePerformanceMetrics();
+        });
     }
     
-    // 更新CPU状态
+    // 更新性能指标
+    updatePerformanceMetrics() {
+        // 计算FPS
+        const now = performance.now();
+        if (!this.lastFrameTime) {
+            this.lastFrameTime = now;
+            this.frameCount = 0;
+        }
+        
+        this.frameCount++;
+        if (now - this.lastFrameTime >= 1000) {
+            const fps = Math.round((this.frameCount * 1000) / (now - this.lastFrameTime));
+            this.frameCount = 0;
+            this.lastFrameTime = now;
+            
+            // 只在开发模式下显示FPS
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`UI更新FPS: ${fps}`);
+            }
+        }
+    }
+    
+    // 更新CPU状态（带平滑动画）
     updateCPUStatus() {
         const cpu = this.systemState.cpu;
         
-        // 更新各个核心的使用率
+        // 批量更新DOM，减少重排重绘
+        const updates = [];
+        
         Object.keys(cpu.cores).forEach(coreName => {
             const core = cpu.cores[coreName];
             const usageElement = document.getElementById(coreName);
             const barElement = document.getElementById(coreName + 'Bar');
             
             if (usageElement && barElement) {
-                usageElement.textContent = `${core.usage}%`;
-                barElement.style.width = `${core.usage}%`;
-                
-                // 根据使用率调整颜色
-                if (core.usage > 80) {
-                    barElement.style.background = 'linear-gradient(90deg, #ff6b6b, #ee5a52)';
-                } else if (core.usage > 60) {
-                    barElement.style.background = 'linear-gradient(90deg, #ffa726, #ff9800)';
-                } else {
-                    barElement.style.background = 'linear-gradient(90deg, #4CAF50, #45a049)';
-                }
+                // 使用CSS变量实现平滑过渡
+                updates.push(() => {
+                    usageElement.textContent = `${core.usage}%`;
+                    
+                    // 使用CSS transition实现平滑动画
+                    barElement.style.transition = 'width 0.3s ease, background 0.3s ease';
+                    barElement.style.width = `${core.usage}%`;
+                    
+                    // 根据使用率动态调整颜色和动画效果
+                    let color, animation;
+                    if (core.usage > 80) {
+                        color = 'linear-gradient(90deg, #ff6b6b, #ee5a52)';
+                        animation = 'pulse 0.5s infinite';
+                    } else if (core.usage > 60) {
+                        color = 'linear-gradient(90deg, #ffa726, #ff9800)';
+                        animation = 'none';
+                    } else {
+                        color = 'linear-gradient(90deg, #4CAF50, #45a049)';
+                        animation = 'none';
+                    }
+                    
+                    barElement.style.background = color;
+                    barElement.style.animation = animation;
+                    
+                    // 添加温度指示器
+                    if (core.temperature > 75) {
+                        usageElement.style.color = '#ff6b6b';
+                        usageElement.style.fontWeight = 'bold';
+                    } else if (core.temperature > 60) {
+                        usageElement.style.color = '#ffa726';
+                    } else {
+                        usageElement.style.color = '';
+                        usageElement.style.fontWeight = '';
+                    }
+                });
             }
         });
+        
+        // 批量执行DOM更新
+        updates.forEach(update => update());
+        
+        // 更新CPU温度图表
+        this.updateCPUTemperatureChart();
+    }
+    
+    // 更新CPU温度图表
+    updateCPUTemperatureChart() {
+        const cpu = this.systemState.cpu;
+        const chartElement = document.getElementById('cpuTempChart');
+        
+        if (!chartElement || !cpu.temperatureHistory) return;
+        
+        // 创建简单的SVG温度图表
+        const svg = `
+            <svg width="100%" height="100%" viewBox="0 0 100 20">
+                <defs>
+                    <linearGradient id="tempGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+                        <stop offset="50%" style="stop-color:#ffa726;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#ff6b6b;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <rect x="0" y="8" width="100" height="4" fill="url(#tempGradient)" opacity="0.3"/>
+                <circle cx="${cpu.temperature / 100 * 100}" cy="10" r="3" fill="#ff6b6b"/>
+                <text x="${cpu.temperature / 100 * 100}" y="18" font-size="3" text-anchor="middle" fill="#666">${cpu.temperature}°C</text>
+            </svg>
+        `;
+        
+        chartElement.innerHTML = svg;
     }
     
     // 更新内存状态
@@ -368,10 +477,18 @@ function displayImage(imageSrc) {
     img.src = imageSrc;
 }
 
-// 执行AI推理
+// 执行AI推理（带图像优化和进度指示）
 async function performAIInference(imageData) {
     try {
-        showNotification('AI推理中...', 'info');
+        // 显示进度指示器
+        const progressNotification = showNotification('AI推理中...', 'info', true);
+        
+        // 图像预处理：压缩和优化
+        const optimizedImageData = await optimizeImageForInference(imageData);
+        
+        // 使用AbortController实现超时控制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
         
         const response = await fetch('/api/ai/inference', {
             method: 'POST',
@@ -379,23 +496,106 @@ async function performAIInference(imageData) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                imageData: imageData
-            })
+                imageData: optimizedImageData,
+                model: currentModel,
+                confidenceThreshold: 0.5
+            }),
+            signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         const result = await response.json();
         
         if (result.success) {
             updateAIDetectionResults(result.data);
-            showNotification(`AI推理完成，检测到${result.data.detections.length}个目标`);
+            
+            // 移除进度指示器
+            if (progressNotification && progressNotification.parentNode) {
+                progressNotification.parentNode.removeChild(progressNotification);
+            }
+            
+            showNotification(`AI推理完成，检测到${result.data.detections.length}个目标`, 'success');
+            
+            // 性能统计
+            logInferencePerformance(result.data);
         } else {
             throw new Error(result.message);
         }
         
     } catch (error) {
         console.error('AI推理失败:', error);
-        showNotification('AI推理失败: ' + error.message, 'error');
+        
+        if (error.name === 'AbortError') {
+            showNotification('AI推理超时，请重试', 'error');
+        } else {
+            showNotification('AI推理失败: ' + error.message, 'error');
+        }
     }
+}
+
+// 图像优化函数
+async function optimizeImageForInference(imageData) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 设置最大尺寸限制
+            const maxWidth = 800;
+            const maxHeight = 600;
+            let { width, height } = img;
+            
+            if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+            }
+            
+            if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            // 高质量缩放
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // 转换为JPEG格式，质量80%
+            const optimizedData = canvas.toDataURL('image/jpeg', 0.8);
+            resolve(optimizedData);
+        };
+        
+        img.src = imageData;
+    });
+}
+
+// 记录推理性能
+function logInferencePerformance(data) {
+    const performanceData = {
+        timestamp: new Date().toISOString(),
+        inferenceTime: data.inferenceTime || 0,
+        detectionCount: data.detections ? data.detections.length : 0,
+        model: currentModel,
+        confidenceThreshold: 0.5
+    };
+    
+    // 保存到本地存储（可选）
+    const history = JSON.parse(localStorage.getItem('aiInferenceHistory') || '[]');
+    history.unshift(performanceData);
+    
+    // 只保留最近50条记录
+    if (history.length > 50) {
+        history.length = 50;
+    }
+    
+    localStorage.setItem('aiInferenceHistory', JSON.stringify(history));
+    
+    console.log('AI推理性能统计:', performanceData);
 }
 
 // 更新AI检测结果

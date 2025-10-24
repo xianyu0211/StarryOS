@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="RK3588 AIoT系统实时监控面板 - 嵌入式AI推理系统状态监控">
+    <meta name="keywords" content="RK3588, AIoT, 嵌入式, AI推理, 系统监控">
     <title>RK3588 AIoT系统监控面板</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" as="style">
     <style>
         :root {
             --primary: #667eea;
@@ -37,6 +40,7 @@
             max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
+            animation: fadeIn 0.8s ease-out;
         }
         
         .header {
@@ -380,8 +384,23 @@
             100% { opacity: 0.6; }
         }
         
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes glow {
+            0% { box-shadow: 0 0 5px rgba(102, 126, 234, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(102, 126, 234, 0.6); }
+            100% { box-shadow: 0 0 5px rgba(102, 126, 234, 0.3); }
+        }
+        
         .pulse {
             animation: pulse 1.5s infinite;
+        }
+        
+        .glow {
+            animation: glow 2s infinite;
         }
         
         /* 滚动条样式 */
