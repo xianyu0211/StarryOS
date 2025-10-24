@@ -1,66 +1,61 @@
 //! 内存管理模块
 //! 
-//! 提供物理内存管理、虚拟内存映射、内存分配器等功能
+//! 提供内存分配、虚拟内存管理、动态内存策略等功能
 
-mod allocator;
-mod frame;
-mod heap;
-mod page_table;
+#![no_std]
 
-use core::alloc::Layout;
-use buddy_system_allocator::LockedHeap;
+pub mod dynamic_memory;
 
-// 全局堆分配器
+use core::alloc::{GlobalAlloc, Layout};
+use core::ptr;
+
+/// 简单的堆分配器（用于演示）
+pub struct SimpleAllocator;
+
+unsafe impl GlobalAlloc for SimpleAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        // 简化实现：使用静态内存池
+        static mut HEAP: [u8; 1024 * 1024] = [0; 1024 * 1024]; // 1MB堆
+        static mut NEXT: usize = 0;
+        
+        let align = layout.align();
+        let size = layout.size();
+        
+        // 对齐处理
+        let start = (NEXT + align - 1) & !(align - 1);
+        
+        if start + size > HEAP.len() {
+            ptr::null_mut()
+        } else {
+            let ptr = &mut HEAP[start] as *mut u8;
+            NEXT = start + size;
+            ptr
+        }
+    }
+    
+    unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
+        // 简化实现：不进行实际释放
+    }
+}
+
 #[global_allocator]
-static HEAP_ALLOCATOR: LockedHeap<32> = LockedHeap::empty();
+static ALLOCATOR: SimpleAllocator = SimpleAllocator;
 
-/// 内存初始化
+/// 内存分配函数（供其他模块使用）
+pub unsafe fn alloc(layout: Layout) -> *mut u8 {
+    ALLOCATOR.alloc(layout)
+}
+
+/// 内存释放函数（供其他模块使用）
+pub unsafe fn dealloc(ptr: *mut u8, layout: Layout) {
+    ALLOCATOR.dealloc(ptr, layout)
+}
+
+/// 初始化内存管理系统
 pub fn init() {
-    // 初始化堆分配器
-    heap::init();
+    // 初始化动态内存管理器
+    dynamic_memory::init_dynamic_memory();
     
-    // 初始化页表
-    page_table::init();
-    
-    // 初始化物理内存帧分配器
-    frame::init();
+    // 其他内存管理初始化
+    println!("内存管理系统初始化完成");
 }
-
-/// 内存分配
-pub fn alloc(layout: Layout) -> Result<*mut u8, &'static str> {
-    unsafe {
-        HEAP_ALLOCATOR
-            .lock()
-            .alloc(layout)
-            .map_err(|_| "内存分配失败")
-    }
-}
-
-/// 内存释放
-pub fn dealloc(ptr: *mut u8, layout: Layout) {
-    unsafe {
-        HEAP_ALLOCATOR.lock().dealloc(ptr, layout);
-    }
-}
-
-/// 获取内存使用情况
-pub fn memory_usage() -> MemoryStats {
-    MemoryStats {
-        total: 0,
-        used: 0,
-        free: 0,
-    }
-}
-
-/// 内存统计信息
-#[derive(Debug, Clone, Copy)]
-pub struct MemoryStats {
-    pub total: usize,
-    pub used: usize,
-    pub free: usize,
-}
-
-// 导出子模块
-pub use allocator::BuddyAllocator;
-pub use frame::FrameAllocator;
-pub use page_table::PageTable;

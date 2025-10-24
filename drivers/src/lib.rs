@@ -1,8 +1,12 @@
-//! StarryOS - 外设驱动模块
+//! StarryOS - 增强型外设驱动模块
 //! 
-//! 提供环境感知、通信交互、操作辅助等外设驱动支持
+//! 基于Rust异步编程模型，支持零拷贝数据传输和硬件加速
 
 #![no_std]
+#![feature(async_fn_in_trait)]
+
+// 异步运行时支持
+pub mod async_runtime;
 
 // 驱动模块
 pub mod environmental;
@@ -15,11 +19,23 @@ pub mod uart;
 pub mod gpio;
 pub mod i2c;
 pub mod spi;
+pub mod usb;
+pub mod mipi_csi;
 
 // 驱动管理器
 mod manager;
 
 use core::fmt;
+use core::future::Future;
+use core::pin::Pin;
+use core::task::{Context, Poll};
+
+// 异步支持
+pub use async_runtime::{AsyncRuntime, Executor, Task};
+
+// DMA支持
+pub mod dma;
+pub use dma::{DmaBuffer, DmaController, ZeroCopyTransfer, DmaDirection};
 
 /// 驱动错误类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,7 +59,58 @@ impl fmt::Display for DriverError {
     }
 }
 
-/// 驱动特征
+/// 异步驱动特征
+pub trait AsyncDriver {
+    /// 驱动名称
+    fn name(&self) -> &'static str;
+    
+    /// 异步初始化驱动
+    async fn init(&mut self) -> Result<(), DriverError>;
+    
+    /// 检查设备是否就绪
+    fn is_ready(&self) -> bool;
+    
+    /// 异步卸载驱动
+    async fn deinit(&mut self) -> Result<(), DriverError>;
+    
+    /// 获取DMA支持状态
+    fn supports_dma(&self) -> bool { false }
+    
+    /// 获取零拷贝支持状态
+    fn supports_zero_copy(&self) -> bool { false }
+}
+
+/// 异步传感器驱动特征
+pub trait AsyncSensorDriver: AsyncDriver {
+    /// 异步读取传感器数据
+    async fn read(&mut self) -> Result<SensorData, DriverError>;
+    
+    /// 使用DMA异步读取传感器数据（零拷贝）
+    async fn read_dma(&mut self, buffer: &mut DmaBuffer) -> Result<(), DriverError> {
+        Err(DriverError::NotSupported)
+    }
+}
+
+/// 异步通信驱动特征
+pub trait AsyncCommunicationDriver: AsyncDriver {
+    /// 异步发送数据
+    async fn send(&mut self, data: &[u8]) -> Result<(), DriverError>;
+    
+    /// 异步接收数据
+    async fn receive(&mut self, buffer: &mut [u8]) -> Result<usize, DriverError>;
+    
+    /// 使用DMA异步发送数据（零拷贝）
+    async fn send_dma(&mut self, buffer: &DmaBuffer) -> Result<(), DriverError> {
+        Err(DriverError::NotSupported)
+    }
+    
+    /// 使用DMA异步接收数据（零拷贝）
+    async fn receive_dma(&mut self, buffer: &mut DmaBuffer) -> Result<usize, DriverError> {
+        Err(DriverError::NotSupported)
+    }
+}
+
+/// 向后兼容的传统驱动特征
 pub trait Driver {
     /// 驱动名称
     fn name(&self) -> &'static str;
@@ -58,13 +125,13 @@ pub trait Driver {
     fn deinit(&mut self) -> Result<(), DriverError>;
 }
 
-/// 传感器驱动特征
+/// 向后兼容的传感器驱动特征
 pub trait SensorDriver: Driver {
     /// 读取传感器数据
     fn read(&mut self) -> Result<SensorData, DriverError>;
 }
 
-/// 通信驱动特征
+/// 向后兼容的通信驱动特征
 pub trait CommunicationDriver: Driver {
     /// 发送数据
     fn send(&mut self, data: &[u8]) -> Result<(), DriverError>;
@@ -116,16 +183,9 @@ impl DriverManager {
     pub fn find_driver(&self, name: &str) -> Option<&dyn Driver> {
         self.drivers.find_by_name(name)
     }
-        self.drivers.register(driver);
-    }
     
-    /// 初始化所有驱动
-    pub fn init_all(&mut self) -> Result<(), DriverError> {
-        self.drivers.init_all()
-    }
-    
-    /// 根据名称查找驱动
-    pub fn find_driver<T: Driver>(&self, name: &str) -> Option<&T> {
+    /// 根据类型查找驱动
+    pub fn find_driver_by_type<T: Driver>(&self, name: &str) -> Option<&T> {
         self.drivers.find(name)
     }
 }

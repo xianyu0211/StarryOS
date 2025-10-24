@@ -28,17 +28,23 @@
 
 ```bash
 # 1. 克隆项目
-git clone <repository-url>
-cd RK
+git clone https://github.com/your-org/starryos-rk3588.git
+cd starryos-rk3588
 
-# 2. 运行系统验证
+# 2. 初始化子模块（如果有）
+git submodule update --init --recursive
+
+# 3. 运行系统验证
 ./scripts/system-integration.sh
 
-# 3. 创建部署镜像
+# 4. 创建部署镜像
 make deploy
 
-# 4. 部署到设备（替换/dev/sdX为实际设备）
+# 5. 部署到设备（替换/dev/sdX为实际设备）
 sudo ./scripts/deploy-voice-ai.sh /dev/sdX
+
+# 6. 验证部署
+./scripts/verify-deployment.sh
 ```
 
 ### 方法二：手动部署

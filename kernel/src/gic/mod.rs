@@ -5,7 +5,8 @@
 #![no_std]
 
 use core::arch::asm;
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicU32, AtomicU64, AtomicBool, Ordering};
+use core::time::Duration;
 
 /// 中断类型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,6 +40,185 @@ impl InterruptPriority {
     /// 最低优先级
     pub const LOWEST: Self = Self(0xFF);
 }
+
+/// 动态中断优先级管理器
+pub struct DynamicPriorityManager {
+    interrupt_stats: [InterruptStats; 1024], // 每个中断的统计信息
+    system_load: AtomicU32,                  // 系统负载指标(0-100)
+    last_adjustment_time: AtomicU64,         // 上次调整时间
+    adaptive_mode: AtomicBool,               // 自适应模式开关
+}
+
+/// 中断统计信息
+#[derive(Debug, Clone)]
+pub struct InterruptStats {
+    pub interrupt_count: AtomicU64,         // 中断发生次数
+    pub average_latency: AtomicU32,          // 平均响应延迟(微秒)
+    pub last_occurrence: AtomicU64,          // 最后发生时间
+    pub current_priority: AtomicU32,         // 当前优先级
+    pub base_priority: u8,                  // 基础优先级
+}
+
+impl InterruptStats {
+    /// 创建新的中断统计
+    pub const fn new(base_priority: u8) -> Self {
+        Self {
+            interrupt_count: AtomicU64::new(0),
+            average_latency: AtomicU32::new(0),
+            last_occurrence: AtomicU64::new(0),
+            current_priority: AtomicU32::new(base_priority as u32),
+            base_priority,
+        }
+    }
+    
+    /// 更新中断统计
+    pub fn update_stats(&self, latency: u32) {
+        self.interrupt_count.fetch_add(1, Ordering::Release);
+        
+        // 更新平均延迟（简化实现）
+        let current_avg = self.average_latency.load(Ordering::Acquire);
+        let new_avg = (current_avg + latency) / 2;
+        self.average_latency.store(new_avg, Ordering::Release);
+        
+        // 更新最后发生时间
+        self.last_occurrence.store(crate::get_timer_count(), Ordering::Release);
+    }
+}
+
+impl DynamicPriorityManager {
+    /// 创建新的动态优先级管理器
+    pub const fn new() -> Self {
+        let mut stats = [InterruptStats::new(0x80); 1024]; // 默认优先级0x80
+        
+        // 设置关键中断的基础优先级
+        stats[27] = InterruptStats::new(0x20); // 定时器中断 - 高优先级
+        stats[32] = InterruptStats::new(0x40); // UART中断 - 中优先级
+        
+        Self {
+            interrupt_stats: stats,
+            system_load: AtomicU32::new(0),
+            last_adjustment_time: AtomicU64::new(0),
+            adaptive_mode: AtomicBool::new(true),
+        }
+    }
+    
+    /// 动态调整中断优先级
+    pub fn adjust_priorities(&self) {
+        if !self.adaptive_mode.load(Ordering::Acquire) {
+            return;
+        }
+        
+        let current_time = crate::get_timer_count();
+        
+        // 每100ms执行一次优先级调整
+        if current_time - self.last_adjustment_time.load(Ordering::Acquire) < 100_000_000 {
+            return;
+        }
+        
+        self.last_adjustment_time.store(current_time, Ordering::Release);
+        
+        // 计算系统负载
+        self.calculate_system_load();
+        
+        // 根据系统负载和中断行为调整优先级
+        for i in 0..1024 {
+            self.adjust_interrupt_priority(i as u32);
+        }
+    }
+    
+    /// 计算系统负载
+    fn calculate_system_load(&self) {
+        // 简化实现：根据中断频率估算系统负载
+        let total_interrupts: u64 = self.interrupt_stats.iter()
+            .map(|stats| stats.interrupt_count.load(Ordering::Acquire))
+            .sum();
+        
+        // 将中断频率映射到负载指标(0-100)
+        let load = (total_interrupts.min(1000) * 100 / 1000) as u32;
+        self.system_load.store(load, Ordering::Release);
+    }
+    
+    /// 调整单个中断的优先级
+    fn adjust_interrupt_priority(&self, interrupt_id: u32) {
+        let stats = &self.interrupt_stats[interrupt_id as usize];
+        let base_priority = stats.base_priority;
+        
+        // 获取中断统计信息
+        let interrupt_count = stats.interrupt_count.load(Ordering::Acquire);
+        let average_latency = stats.average_latency.load(Ordering::Acquire);
+        let last_occurrence = stats.last_occurrence.load(Ordering::Acquire);
+        
+        // 计算优先级调整因子
+        let mut adjustment = 0i32;
+        
+        // 高频率中断提高优先级
+        if interrupt_count > 100 {
+            adjustment -= 10;
+        }
+        
+        // 高延迟中断提高优先级
+        if average_latency > 1000 {
+            adjustment -= 15;
+        }
+        
+        // 最近发生的中断提高优先级
+        let current_time = crate::get_timer_count();
+        if current_time - last_occurrence < 50_000_000 { // 50ms内
+            adjustment -= 5;
+        }
+        
+        // 系统负载高时，关键中断获得更高优先级
+        let system_load = self.system_load.load(Ordering::Acquire);
+        if system_load > 70 {
+            if interrupt_id == 27 || interrupt_id == 32 { // 定时器、UART
+                adjustment -= 20;
+            }
+        }
+        
+        // 计算新优先级
+        let new_priority = (base_priority as i32 + adjustment)
+            .max(0)
+            .min(255) as u32;
+        
+        // 更新优先级
+        stats.current_priority.store(new_priority, Ordering::Release);
+        
+        // 应用新的优先级到硬件
+        unsafe {
+            self.apply_priority_to_hardware(interrupt_id, new_priority as u8);
+        }
+    }
+    
+    /// 应用优先级到硬件
+    unsafe fn apply_priority_to_hardware(&self, interrupt_id: u32, priority: u8) {
+        let gicd = GIC_MANAGER.distributor_base as *mut u32;
+        gicd.add(0x400 + (interrupt_id as usize)).write_volatile(priority as u32);
+    }
+    
+    /// 记录中断发生
+    pub fn record_interrupt(&self, interrupt_id: u32, latency: u32) {
+        if interrupt_id < 1024 {
+            self.interrupt_stats[interrupt_id as usize].update_stats(latency);
+        }
+    }
+    
+    /// 启用/禁用自适应模式
+    pub fn set_adaptive_mode(&self, enabled: bool) {
+        self.adaptive_mode.store(enabled, Ordering::Release);
+    }
+    
+    /// 获取中断统计信息
+    pub fn get_interrupt_stats(&self, interrupt_id: u32) -> Option<InterruptStats> {
+        if interrupt_id < 1024 {
+            Some(self.interrupt_stats[interrupt_id as usize].clone())
+        } else {
+            None
+        }
+    }
+}
+
+/// 全局动态优先级管理器实例
+pub static DYNAMIC_PRIORITY_MANAGER: DynamicPriorityManager = DynamicPriorityManager::new();
 
 /// 中断控制器管理器
 pub struct GicManager {
@@ -225,10 +405,11 @@ pub fn register_interrupt_handler(interrupt_id: u32, handler: InterruptHandler) 
     Ok(())
 }
 
-/// 通用中断处理函数
+/// 通用中断处理函数（增强版，支持动态优先级管理）
 #[no_mangle]
 pub extern "C" fn handle_interrupt() {
     unsafe {
+        let start_time = crate::get_timer_count();
         let interrupt_id = GIC_MANAGER.get_interrupt_id();
         
         if interrupt_id < 1024 {
@@ -242,6 +423,15 @@ pub extern "C" fn handle_interrupt() {
         
         // 完成中断处理
         GIC_MANAGER.end_interrupt(interrupt_id);
+        
+        // 记录中断延迟并更新优先级
+        let end_time = crate::get_timer_count();
+        let latency = (end_time - start_time) as u32; // 转换为微秒
+        
+        DYNAMIC_PRIORITY_MANAGER.record_interrupt(interrupt_id, latency);
+        
+        // 定期调整优先级
+        DYNAMIC_PRIORITY_MANAGER.adjust_priorities();
     }
 }
 
