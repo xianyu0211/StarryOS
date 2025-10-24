@@ -5,6 +5,9 @@
 #![no_std]
 #![feature(async_fn_in_trait)]
 
+// 导入通用库
+use common::{DriverError, SensorData, Result as CommonResult};
+
 // 异步运行时支持
 pub mod async_runtime;
 
@@ -13,6 +16,7 @@ pub mod environmental;
 pub mod communication;
 pub mod auxiliary;
 pub mod npu;
+pub mod rk3588_drivers;
 
 // 通用接口
 pub mod uart;
@@ -36,28 +40,6 @@ pub use async_runtime::{AsyncRuntime, Executor, Task};
 // DMA支持
 pub mod dma;
 pub use dma::{DmaBuffer, DmaController, ZeroCopyTransfer, DmaDirection};
-
-/// 驱动错误类型
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DriverError {
-    DeviceNotFound,
-    CommunicationError,
-    Timeout,
-    InvalidParameter,
-    NotSupported,
-}
-
-impl fmt::Display for DriverError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DriverError::DeviceNotFound => write!(f, "设备未找到"),
-            DriverError::CommunicationError => write!(f, "通信错误"),
-            DriverError::Timeout => write!(f, "操作超时"),
-            DriverError::InvalidParameter => write!(f, "参数无效"),
-            DriverError::NotSupported => write!(f, "不支持的操作"),
-        }
-    }
-}
 
 /// 异步驱动特征
 pub trait AsyncDriver {

@@ -1,6 +1,6 @@
 //! StarryOS - 综合测试套件
 //! 
-//! 提供完整的系统测试、性能基准测试和集成验证
+//! 提供完整的系统测试、性能基准测试、集成验证和自动化测试
 
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(test, feature(test))]
@@ -11,6 +11,7 @@ pub mod integration;
 pub mod benchmarks;
 pub mod hardware;
 pub mod security;
+pub mod automated_tests;
 
 // 测试工具模块
 mod utils;

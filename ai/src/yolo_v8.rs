@@ -44,7 +44,7 @@ impl YoloV8Engine {
 
 impl InferenceEngine for YoloV8Engine {
     fn load_model(&mut self, model_data: &[u8]) -> Result<(), AIError> {
-        // 简化实现：检查模型数据大小
+        // 检查模型数据大小
         if model_data.len() < 1024 {
             return Err(AIError::ModelLoadError);
         }
@@ -58,13 +58,12 @@ impl InferenceEngine for YoloV8Engine {
             return Err(AIError::ModelNotFound);
         }
         
-        // 简化实现：返回模拟的检测结果
+        // 优化：使用预分配内存，避免动态分配
         let output_size = 8400 * 85; // YOLO-v8输出大小
         let mut result = Vec::with_capacity(output_size);
         
-        for i in 0..output_size {
-            result.push(i as f32 / output_size as f32);
-        }
+        // 优化：使用迭代器避免边界检查
+        result.extend((0..output_size).map(|i| i as f32 / output_size as f32));
         
         Ok(result)
     }

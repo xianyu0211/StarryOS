@@ -22,6 +22,7 @@
 
 use core::panic::PanicInfo;
 use core::arch::asm;
+use common::{SystemError, Result as CommonResult};
 
 // 内核核心模块
 pub mod cpu;
@@ -29,6 +30,7 @@ pub mod mmu;
 pub mod gic;
 pub mod scheduler;
 pub mod syscall;
+pub mod rk3588;
 
 /// 内核初始化
 /// 

@@ -4,6 +4,9 @@
 
 #![no_std]
 
+// 导入通用库
+use common::{AppError, BoundingBox, Detection, PerformanceMode, LogLevel};
+
 // 应用模块
 pub mod voice_interaction;
 pub mod multimodal_fusion;
@@ -14,27 +17,7 @@ mod utils;
 
 use core::fmt;
 
-/// 应用错误类型
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AppError {
-    InitializationFailed,
-    ResourceUnavailable,
-    InvalidConfiguration,
-    HardwareError,
-    CommunicationError,
-}
-
-impl fmt::Display for AppError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AppError::InitializationFailed => write!(f, "应用初始化失败"),
-            AppError::ResourceUnavailable => write!(f, "资源不可用"),
-            AppError::InvalidConfiguration => write!(f, "配置无效"),
-            AppError::HardwareError => write!(f, "硬件错误"),
-            AppError::CommunicationError => write!(f, "通信错误"),
-        }
-    }
-}
+// AppError已从common库导入
 
 /// 应用管理器特征
 pub trait AppManager {
@@ -70,7 +53,9 @@ pub enum AppEvent {
     SystemEvent(SystemEvent),
 }
 
-/// 检测结果
+// BoundingBox和Detection已从common库导入
+
+/// 检测结果（适配应用层使用）
 #[derive(Debug, Clone)]
 pub struct DetectionResult {
     pub class_id: u32,
@@ -79,23 +64,7 @@ pub struct DetectionResult {
     pub bounding_box: BoundingBox,
 }
 
-/// 边界框
-#[derive(Debug, Clone, Copy)]
-pub struct BoundingBox {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
-/// 传感器数据
-#[derive(Debug, Clone)]
-pub struct SensorData {
-    pub temperature: f32,
-    pub humidity: f32,
-    pub light_level: f32,
-    pub motion_detected: bool,
-}
+// SensorData已从common库导入，但这里保持应用特定的SensorData以兼容现有代码
 
 /// 系统事件
 #[derive(Debug, Clone)]

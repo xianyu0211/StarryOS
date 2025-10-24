@@ -26,6 +26,9 @@ uart_16550 = "0.2"
 # 工具库
 spin = "0.9"
 
+# 通用库
+common = { path = "../common", features = ["alloc-support"] }
+
 [features]
 default = []
 qemu = []

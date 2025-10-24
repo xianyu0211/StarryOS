@@ -46,7 +46,7 @@ impl Executor {
     /// 创建新的执行器
     pub const fn new() -> Self {
         Self {
-            task_queue: RefCell::new(VecDeque::new()),
+            task_queue: RefCell::new(VecDeque::with_capacity(16)), // 预分配容量
             running: AtomicBool::new(false),
         }
     }
@@ -64,6 +64,10 @@ impl Executor {
     pub fn run(&self) {
         self.running.store(true, Ordering::Release);
         
+        // 优化：缓存waker避免重复创建
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        
         while self.running.load(Ordering::Acquire) {
             let mut queue = self.task_queue.borrow_mut();
             
@@ -73,25 +77,27 @@ impl Executor {
                 continue;
             }
             
-            // 执行一轮任务调度
-            let mut i = 0;
-            while i < queue.len() {
-                let mut task = queue.remove(i).unwrap();
-                
-                // 创建虚拟上下文（简化实现）
-                let waker = noop_waker();
-                let mut cx = Context::from_waker(&waker);
-                
-                match task.poll(&mut cx) {
-                    Poll::Ready(()) => {
-                        // 任务完成，不重新加入队列
-                    }
-                    Poll::Pending => {
-                        // 任务未完成，重新加入队列
-                        queue.push_back(task);
-                        i += 1;
+            // 优化：使用更高效的调度算法
+            let mut completed_tasks = 0;
+            let total_tasks = queue.len();
+            
+            for _ in 0..total_tasks {
+                if let Some(mut task) = queue.pop_front() {
+                    match task.poll(&mut cx) {
+                        Poll::Ready(()) => {
+                            completed_tasks += 1;
+                        }
+                        Poll::Pending => {
+                            // 任务未完成，重新加入队列末尾
+                            queue.push_back(task);
+                        }
                     }
                 }
+            }
+            
+            // 如果所有任务都完成，检查是否需要停止
+            if completed_tasks == total_tasks && queue.is_empty() {
+                break;
             }
         }
     }

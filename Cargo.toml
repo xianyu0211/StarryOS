@@ -1,10 +1,11 @@
 [workspace]
 members = [
+    "common",
     "kernel",
-    "drivers", 
+    "drivers",
     "ai",
     "apps",
-    "tests"
+    "tests",
 ]
 
 resolver = "2"

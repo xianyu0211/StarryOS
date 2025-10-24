@@ -4,40 +4,20 @@
 
 #![no_std]
 
+// 导入通用库
+use common::{AIError, BoundingBox, Detection, Result as CommonResult};
+
 // AI核心模块
 pub mod yolo_v8;
 pub mod inference;
 pub mod optimization;
 pub mod npu;
+pub mod rk3588_npu;
 
 // 工具模块
 mod utils;
 
 use core::fmt;
-
-/// AI错误类型
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AIError {
-    ModelNotFound,
-    ModelLoadError,
-    InferenceError,
-    HardwareNotSupported,
-    MemoryAllocationError,
-    InvalidInput,
-}
-
-impl fmt::Display for AIError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AIError::ModelNotFound => write!(f, "模型文件未找到"),
-            AIError::ModelLoadError => write!(f, "模型加载失败"),
-            AIError::InferenceError => write!(f, "推理执行错误"),
-            AIError::HardwareNotSupported => write!(f, "硬件不支持"),
-            AIError::MemoryAllocationError => write!(f, "内存分配错误"),
-            AIError::InvalidInput => write!(f, "输入数据无效"),
-        }
-    }
-}
 
 /// AI推理引擎特征
 pub trait InferenceEngine {
@@ -88,23 +68,7 @@ pub enum OptimizationLevel {
     Aggressive,
 }
 
-/// 检测结果
-#[derive(Debug, Clone)]
-pub struct Detection {
-    pub class_id: usize,
-    pub class_name: &'static str,
-    pub confidence: f32,
-    pub bbox: BoundingBox,
-}
-
-/// 边界框
-#[derive(Debug, Clone, Copy)]
-pub struct BoundingBox {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
+// Detection和BoundingBox已从common库导入
 
 /// AI管理器
 pub struct AIManager {
@@ -116,7 +80,7 @@ impl AIManager {
     /// 创建新的AI管理器
     pub fn new() -> Self {
         Self {
-            engines: Vec::new(),
+            engines: Vec::with_capacity(4), // 预分配容量，减少内存分配
             current_engine: None,
         }
     }
@@ -142,6 +106,33 @@ impl AIManager {
             self.engines[index].infer(input)
         } else {
             Err(AIError::InferenceError)
+        }
+    }
+    
+    /// 批量推理，提高吞吐量
+    pub fn infer_batch(&mut self, inputs: &[&[f32]]) -> Result<Vec<Vec<f32>>, AIError> {
+        if let Some(index) = self.current_engine {
+            let mut results = Vec::with_capacity(inputs.len());
+            for input in inputs {
+                results.push(self.engines[index].infer(input)?);
+            }
+            Ok(results)
+        } else {
+            Err(AIError::InferenceError)
+        }
+    }
+    
+    /// 获取引擎数量
+    pub fn engine_count(&self) -> usize {
+        self.engines.len()
+    }
+    
+    /// 获取当前引擎信息（避免克隆）
+    pub fn current_engine_info(&self) -> Option<&ModelInfo> {
+        if let Some(index) = self.current_engine {
+            Some(&self.engines[index].model_info())
+        } else {
+            None
         }
     }
 }

@@ -40,15 +40,17 @@ pub struct SystemIntegrationManager {
     test_results: Vec<IntegrationTestResult>,
     current_test: Option<&'static str>,
     start_time: u64,
+    performance_cache: PerformanceMetrics,
 }
 
 impl SystemIntegrationManager {
     /// 创建新的系统集成管理器
     pub fn new() -> Self {
         Self {
-            test_results: Vec::new(),
+            test_results: Vec::with_capacity(20), // 预分配容量
             current_test: None,
             start_time: 0,
+            performance_cache: PerformanceMetrics::default(),
         }
     }
     
@@ -86,20 +88,31 @@ impl SystemIntegrationManager {
         }
     }
     
-    /// 获取当前性能指标
-    fn get_current_performance_metrics(&self) -> PerformanceMetrics {
-        // 从系统监控模块获取真实性能数据
-        let cpu_usage = kernel::cpu::get_usage_percent();
-        let memory_usage = kernel::memory::get_usage_mb();
-        let inference_time = ai::npu::get_last_inference_time();
-        let power_consumption = kernel::power::get_current_power();
-        
-        PerformanceMetrics {
-            cpu_usage_percent: cpu_usage,
-            memory_usage_mb: memory_usage,
-            inference_time_ms: inference_time,
-            power_consumption_w: power_consumption,
+    /// 获取当前性能指标（带缓存优化）
+    fn get_current_performance_metrics(&mut self) -> PerformanceMetrics {
+        // 使用缓存避免频繁的系统调用
+        if self.should_refresh_cache() {
+            // 从系统监控模块获取真实性能数据
+            let cpu_usage = kernel::cpu::get_usage_percent();
+            let memory_usage = kernel::memory::get_usage_mb();
+            let inference_time = ai::npu::get_last_inference_time();
+            let power_consumption = kernel::power::get_current_power();
+            
+            self.performance_cache = PerformanceMetrics {
+                cpu_usage_percent: cpu_usage,
+                memory_usage_mb: memory_usage,
+                inference_time_ms: inference_time,
+                power_consumption_w: power_consumption,
+            };
         }
+        
+        self.performance_cache
+    }
+    
+    /// 判断是否需要刷新缓存
+    fn should_refresh_cache(&self) -> bool {
+        // 简单的缓存策略：每5次调用刷新一次
+        self.test_results.len() % 5 == 0
     }
     
     /// 运行完整的系统集成测试套件

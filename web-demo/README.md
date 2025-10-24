@@ -1,5 +1,6 @@
 # RK3588 AIoT系统Web演示应用
 包含了实际的演示地址：http://d037cdb9d5814a77ace383a80cfd604b.codebuddy.cloudstudio.run
+如果在线资源出问题用html本地演示
 这是一个为RK3588嵌入式AIoT系统构建的Web演示应用，通过REST API和WebSocket实时监控系统状态，并展示AI推理功能。
 
 ## 功能特性

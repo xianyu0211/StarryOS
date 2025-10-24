@@ -7,6 +7,7 @@ edition = "2021"
 # 核心依赖
 starry-kernel = { path = "../kernel" }
 starry-drivers = { path = "../drivers" }
+common = { path = "../common", features = ["alloc-support"] }
 
 # 数学计算
 nalgebra = "0.32"
