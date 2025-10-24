@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RK3588 AIoT系统监控面板</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #667eea;
+            --primary-dark: #764ba2;
+            --secondary: #6c757d;
+            --success: #4CAF50;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --light: #f8f9fa;
+            --dark: #333;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            min-height: 100vh;
+            color: var(--dark);
+            overflow-x: hidden;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+            position: relative;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: var(--shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--light);
+        }
+        
+        .card-header i {
+            font-size: 2rem;
+            margin-right: 15px;
+            color: var(--primary);
+        }
+        
+        .card-header h3 {
+            font-size: 1.3rem;
+            color: var(--dark);
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 12px;
+            background: var(--light);
+            border-radius: 8px;
+            transition: background 0.2s ease;
+        }
+        
+        .metric:hover {
+            background: #e9ecef;
+        }
+        
+        .metric-label {
+            font-weight: 600;
+            color: #555;
+            display: flex;
+            align-items: center;
+        }
+        
+        .metric-label i {
+            margin-right: 8px;
+            font-size: 0.9rem;
+        }
+        
+        .metric-value {
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: var(--primary);
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--success), #45a049);
+            transition: width 0.5s ease;
+            border-radius: 4px;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 12px 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn i {
+            margin-right: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+            transform: translateY(-2px);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+        
+        .status-offline {
+            background: var(--danger);
+        }
+        
+        .ai-detection {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 30px;
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ai-detection::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+        }
+        
+        .detection-canvas {
+            width: 100%;
+            height: 400px;
+            background: var(--light);
+            border-radius: 10px;
+            border: 2px dashed #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 1.1rem;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .detection-canvas img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        
+        .detection-results {
+            margin-top: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .detection-item {
+            padding: 12px 15px;
+            margin: 0;
+            background: var(--light);
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .detection-item:last-child {
+            border-bottom: none;
+        }
+        
+        .detection-item .label {
+            font-weight: 600;
+        }
+        
+        .detection-item .confidence {
+            color: var(--primary);
+            font-weight: bold;
+        }
+        
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 20px;
+            border-radius: 8px;
+            background: var(--dark);
+            color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .notification.show {
+            opacity: 1;
+        }
+        
+        .notification i {
+            margin-right: 10px;
+        }
+        
+        .temp-chart {
+            width: 100%;
+            height: 120px;
+            margin-top: 15px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .connection-status {
+                top: 10px;
+                right: 10px;
+                font-size: 0.9rem;
+            }
+            
+            .detection-canvas {
+                height: 300px;
+            }
+        }
+        
+        /* 加载动画 */
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 10px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary-dark);
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status" id="connectionStatus">
+        <span class="status-indicator status-offline"></span>
+        连接状态: 离线
+    </div>
+    
+    <div class="notification" id="notification">
+        <i class="fas fa-info-circle"></i>
+        <span id="notificationText">操作成功</span>
+    </div>
+    
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-microchip"></i> RK3588 AIoT系统监控面板</h1>
+            <p>实时监控嵌入式系统状态和AI推理性能</p>
+        </div>
+        
+        <div class="dashboard">
+            <!-- CPU状态卡片 -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-brain"></i>
+                    <h3>CPU状态</h3>
+                </div>
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-microchip"></i> 核心A76-0</span>
+                    <span class="metric-value" id="coreA76_0">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="coreA76_0Bar" style="width: 0%"></div>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-microchip"></i> 核心A76-1</span>
+                    <span class="metric-value" id="coreA76_1">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="coreA76_1Bar" style="width: 0%"></div>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-microchip"></i> 核心A55-0</span>
+                    <span class="metric-value" id="coreA55_0">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="coreA55_0Bar" style="width: 0%"></div>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-microchip"></i> 核心A55-1</span>
+                    <span class="metric-value" id="coreA55_1">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="coreA55_1Bar" style="width: 0%"></div>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-thermometer-half"></i> 温度</span>
+                    <span class="metric-value" id="cpuTemp">45°C</span>
+                </div>
+                
+                <div class="temp-chart" id="cpuTempChart">
+                    <!-- 温度图表将在这里显示 -->
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="adjustFrequency('high')">
+                        <i class="fas fa-bolt"></i> 高性能
+                    </button>
+                    <button class="btn btn-secondary" onclick="adjustFrequency('normal')">
+                        <i class="fas fa-balance-scale"></i> 均衡
+                    </button>
+                    <button class="btn btn-secondary" onclick="adjustFrequency('low')">
+                        <i class="fas fa-leaf"></i> 节能
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 内存状态卡片 -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-memory"></i>
+                    <h3>内存管理</h3>
+                </div>
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-chart-pie"></i> 内存使用</span>
+                    <span class="metric-value" id="memoryUsage">0/0 MB</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="memoryBar" style="width: 0%"></div>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-tachometer-alt"></i> 内存压力</span>
+                    <span class="metric-value" id="memoryPressure">0%</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-puzzle-piece"></i> 碎片化程度</span>
+                    <span class="metric-value" id="fragmentation">0%</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-sort-amount-up"></i> 分配次数</span>
+                    <span class="metric-value" id="allocationCount">0</span>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="defragmentMemory()">
+                        <i class="fas fa-compress"></i> 内存整理
+                    </button>
+                    <button class="btn btn-secondary" onclick="clearMemoryStats()">
+                        <i class="fas fa-redo"></i> 重置统计
+                    </button>
+                </div>
+            </div>
+            
+            <!-- AI推理状态卡片 -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-robot"></i>
+                    <h3>AI推理引擎</h3>
+                </div>
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-clock"></i> 推理延迟</span>
+                    <span class="metric-value" id="inferenceLatency">0ms</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-microchip"></i> NPU使用率</span>
+                    <span class="metric-value" id="npuUsage">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="npuBar" style="width: 0%"></div>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-layer-group"></i> 批处理大小</span>
+                    <span class="metric-value" id="batchSize">1</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-bullseye"></i> 检测目标数</span>
+                    <span class="metric-value" id="detectionCount">0</span>
+                </div>
+                
+                <div class="metric">
+                    <span class="metric-label"><i class="fas fa-thermometer-half"></i> NPU温度</span>
+                    <span class="metric-value" id="npuTemp">42°C</span>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="startInference()">
+                        <i class="fas fa-play"></i> 开始推理
+                    </button>
+                    <button class="btn btn-secondary" onclick="stopInference()">
+                        <i class="fas fa-stop"></i> 停止推理
+                    </button>
+                    <button class="btn btn-secondary" onclick="toggleModel()">
+                        <i class="fas fa-exchange-alt"></i> 切换模型
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- AI目标检测区域 -->
+        <div class="ai-detection">
+            <div class="card-header">
+                <i class="fas fa-eye"></i>
+                <h3>AI目标检测</h3>
+            </div>
+            
+            <div class="detection-canvas" id="detectionCanvas">
+                <div id="canvasPlaceholder">
+                    <i class="fas fa-camera" style="font-size: 3rem; margin-bottom: 10px; color: #aaa;"></i><br>
+                    等待图像输入...
+                </div>
+                <img id="detectionImage" style="display: none; max-width: 100%; max-height: 100%;">
+                <canvas id="detectionOverlay" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></canvas>
+            </div>
+            
+            <div class="controls" style="margin-top: 20px;">
+                <button class="btn btn-primary" onclick="uploadImage()">
+                    <i class="fas fa-upload"></i> 上传图像
+                </button>
+                <button class="btn btn-secondary" onclick="useSampleImage()">
+                    <i class="fas fa-image"></i> 使用示例图像
+                </button>
+                <button class="btn btn-secondary" onclick="toggleOverlay()">
+                    <i class="fas fa-border-all"></i> 切换覆盖层
+                </button>
+                <input type="file" id="imageUpload" accept="image/*" style="display: none;" onchange="handleImageUpload(this.files[0])">
+            </div>
+            
+            <div class="detection-results" id="detectionResults">
+                <!-- 检测结果将在这里显示 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 模拟数据生成器
+        let systemData = {
+            cpu: {
+                cores: {
+                    'A76-0': 0,
+                    'A76-1': 0,
+                    'A55-0': 0,
+                    'A55-1': 0
+                },
+                temperature: 45,
+                frequencyMode: 'normal'
+            },
+            memory: {
+                used: 512,
+                total: 2048,
+                pressure: 15,
+                fragmentation: 8,
+                allocationCount: 1245
+            },
+            npu: {
+                usage: 0,
+                temperature: 42,
+                latency: 0,
+                batchSize: 1,
+                detectionCount: 0,
+                isRunning: false
+            },
+            connection: {
+                status: 'offline'
+            }
+        };
+        
+        let temperatureHistory = {
+            cpu: [45, 44, 46, 47, 45, 44, 43, 45, 46, 47],
+            npu: [42, 41, 43, 44, 42, 41, 40, 42, 43, 44]
+        };
+        
+        let currentModel = 'yolov5s';
+        let overlayVisible = true;
+        
+        // DOM 元素引用
+        const connectionStatus = document.getElementById('connectionStatus');
+        const notification = document.getElementById('notification');
+        const notificationText = document.getElementById('notificationText');
+        
+        // 初始化函数
+        function init() {
+            updateConnectionStatus();
+            updateSystemData();
+            setInterval(updateSystemData, 2000);
+            
+            // 模拟连接状态变化
+            setTimeout(() => {
+                systemData.connection.status = 'online';
+                updateConnectionStatus();
+                showNotification('系统已连接', 'success');
+            }, 1500);
+        }
+        
+        // 更新系统数据
+        function updateSystemData() {
+            // 更新CPU数据
+            if (systemData.connection.status === 'online') {
+                // 模拟CPU使用率变化
+                for (let core in systemData.cpu.cores) {
+                    const baseValue = systemData.cpu.frequencyMode === 'high' ? 40 : 
+                                    systemData.cpu.frequencyMode === 'low' ? 15 : 25;
+                    const variation = Math.random() * 20;
+                    systemData.cpu.cores[core] = Math.min(baseValue + variation, 95);
+                    
+                    // 更新UI
+                    document.getElementById(`core${core.replace('-', '_')}`).textContent = 
+                        `${Math.round(systemData.cpu.cores[core])}%`;
+                    document.getElementById(`core${core.replace('-', '_')}Bar`).style.width = 
+                        `${systemData.cpu.cores[core]}%`;
+                }
+                
+                // 更新CPU温度
+                const tempVariation = Math.random() * 4 - 2;
+                systemData.cpu.temperature = Math.max(40, Math.min(85, systemData.cpu.temperature + tempVariation));
+                document.getElementById('cpuTemp').textContent = `${Math.round(systemData.cpu.temperature)}°C`;
+                
+                // 更新温度历史
+                temperatureHistory.cpu.push(systemData.cpu.temperature);
+                if (temperatureHistory.cpu.length > 10) temperatureHistory.cpu.shift();
+                
+                // 更新内存数据
+                const memVariation = Math.random() * 100 - 50;
+                systemData.memory.used = Math.max(256, Math.min(systemData.memory.total - 100, systemData.memory.used + memVariation));
+                const memoryUsagePercent = (systemData.memory.used / systemData.memory.total) * 100;
+                
+                document.getElementById('memoryUsage').textContent = 
+                    `${Math.round(systemData.memory.used)}/${systemData.memory.total} MB`;
+                document.getElementById('memoryBar').style.width = `${memoryUsagePercent}%`;
+                
+                document.getElementById('memoryPressure').textContent = 
+                    `${Math.round(systemData.memory.pressure + Math.random() * 5 - 2.5)}%`;
+                document.getElementById('fragmentation').textContent = 
+                    `${Math.round(systemData.memory.fragmentation + Math.random() * 2 - 1)}%`;
+                document.getElementById('allocationCount').textContent = 
+                    systemData.memory.allocationCount + Math.floor(Math.random() * 10);
+                
+                // 更新NPU数据
+                if (systemData.npu.isRunning) {
+                    systemData.npu.usage = Math.min(95, systemData.npu.usage + Math.random() * 10 - 5);
+                    systemData.npu.latency = 20 + Math.random() * 30;
+                    systemData.npu.detectionCount = Math.floor(Math.random() * 10);
+                    
+                    // NPU温度随使用率增加
+                    systemData.npu.temperature = 42 + (systemData.npu.usage / 100) * 20;
+                } else {
+                    systemData.npu.usage = Math.max(0, systemData.npu.usage - 5);
+                    systemData.npu.latency = 0;
+                    systemData.npu.detectionCount = 0;
+                    systemData.npu.temperature = Math.max(35, systemData.npu.temperature - 0.5);
+                }
+                
+                document.getElementById('npuUsage').textContent = `${Math.round(systemData.npu.usage)}%`;
+                document.getElementById('npuBar').style.width = `${systemData.npu.usage}%`;
+                document.getElementById('inferenceLatency').textContent = `${Math.round(systemData.npu.latency)}ms`;
+                document.getElementById('detectionCount').textContent = systemData.npu.detectionCount;
+                document.getElementById('npuTemp').textContent = `${Math.round(systemData.npu.temperature)}°C`;
+                
+                // 更新温度历史
+                temperatureHistory.npu.push(systemData.npu.temperature);
+                if (temperatureHistory.npu.length > 10) temperatureHistory.npu.shift();
+                
+                // 绘制温度图表
+                drawTemperatureChart();
+            }
+        }
+        
+        // 绘制温度图表
+        function drawTemperatureChart() {
+            // 这里可以添加温度图表的绘制代码
+            // 由于时间关系，这里仅作占位
+        }
+        
+        // 更新连接状态
+        function updateConnectionStatus() {
+            const indicator = connectionStatus.querySelector('.status-indicator');
+            if (systemData.connection.status === 'online') {
+                indicator.className = 'status-indicator status-online';
+                connectionStatus.querySelector('span:last-child').textContent = '连接状态: 在线';
+            } else {
+                indicator.className = 'status-indicator status-offline';
+                connectionStatus.querySelector('span:last-child').textContent = '连接状态: 离线';
+            }
+        }
+        
+        // 显示通知
+        function showNotification(message, type = 'info') {
+            notificationText.textContent = message;
+            
+            // 设置通知类型样式
+            notification.className = 'notification';
+            if (type === 'success') {
+                notification.style.background = 'var(--success)';
+            } else if (type === 'warning') {
+                notification.style.background = 'var(--warning)';
+                notification.style.color = 'var(--dark)';
+            } else if (type === 'error') {
+                notification.style.background = 'var(--danger)';
+            } else {
+                notification.style.background = 'var(--dark)';
+            }
+            
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 调整CPU频率
+        function adjustFrequency(mode) {
+            systemData.cpu.frequencyMode = mode;
+            let message = '';
+            
+            switch(mode) {
+                case 'high':
+                    message = '已切换到高性能模式';
+                    break;
+                case 'normal':
+                    message = '已切换到均衡模式';
+                    break;
+                case 'low':
+                    message = '已切换到节能模式';
+                    break;
+            }
+            
+            showNotification(message, 'success');
+        }
+        
+        // 内存整理
+        function defragmentMemory() {
+            systemData.memory.fragmentation = Math.max(0, systemData.memory.fragmentation - 5);
+            showNotification('内存整理完成', 'success');
+        }
+        
+        // 重置内存统计
+        function clearMemoryStats() {
+            systemData.memory.allocationCount = 0;
+            showNotification('内存统计已重置', 'info');
+        }
+        
+        // 开始推理
+        function startInference() {
+            systemData.npu.isRunning = true;
+            showNotification('AI推理已启动', 'success');
+        }
+        
+        // 停止推理
+        function stopInference() {
+            systemData.npu.isRunning = false;
+            showNotification('AI推理已停止', 'info');
+        }
+        
+        // 切换模型
+        function toggleModel() {
+            currentModel = currentModel === 'yolov5s' ? 'yolov5m' : 'yolov5s';
+            showNotification(`已切换到模型: ${currentModel}`, 'info');
+        }
+        
+        // 上传图像
+        function uploadImage() {
+            document.getElementById('imageUpload').click();
+        }
+        
+        // 处理图像上传
+        function handleImageUpload(file) {
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    displayImage(e.target.result);
+                    simulateDetection();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        // 使用示例图像
+        function useSampleImage() {
+            // 使用一个示例图像URL
+            const sampleImageUrl = 'https://via.placeholder.com/800x600/667eea/ffffff?text=RK3588+AI+Demo';
+            displayImage(sampleImageUrl);
+            simulateDetection();
+        }
+        
+        // 显示图像
+        function displayImage(src) {
+            const placeholder = document.getElementById('canvasPlaceholder');
+            const image = document.getElementById('detectionImage');
+            const overlay = document.getElementById('detectionOverlay');
+            
+            placeholder.style.display = 'none';
+            image.style.display = 'block';
+            overlay.style.display = 'block';
+            
+            image.onload = function() {
+                // 绘制检测框
+                drawDetectionBoxes();
+            };
+            
+            image.src = src;
+        }
+        
+        // 绘制检测框
+        function drawDetectionBoxes() {
+            const canvas = document.getElementById('detectionOverlay');
+            const image = document.getElementById('detectionImage');
+            const ctx = canvas.getContext('2d');
+            
+            // 设置canvas尺寸与图像一致
+            canvas.width = image.width;
+            canvas.height = image.height;
+            
+            // 清除画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 模拟绘制检测框
+            if (overlayVisible) {
+                ctx.strokeStyle = '#ff0000';
+                ctx.lineWidth = 2;
+                ctx.font = '14px Arial';
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+                
+                // 模拟几个检测框
+                const boxes = [
+                    {x: 100, y: 80, w: 200, h: 150, label: '人', confidence: 0.87},
+                    {x: 400, y: 120, w: 150, h: 120, label: '汽车', confidence: 0.92},
+                    {x: 250, y: 300, w: 180, h: 200, label: '狗', confidence: 0.78}
+                ];
+                
+                boxes.forEach(box => {
+                    ctx.strokeRect(box.x, box.y, box.w, box.h);
+                    ctx.fillRect(box.x, box.y, box.w, box.h);
+                    
+                    // 绘制标签
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+                    ctx.fillRect(box.x, box.y - 20, ctx.measureText(`${box.label} ${(box.confidence*100).toFixed(1)}%`).width + 10, 20);
+                    
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(`${box.label} ${(box.confidence*100).toFixed(1)}%`, box.x + 5, box.y - 5);
+                });
+                
+                // 更新检测结果
+                updateDetectionResults(boxes);
+            }
+        }
+        
+        // 更新检测结果
+        function updateDetectionResults(detections) {
+            const resultsContainer = document.getElementById('detectionResults');
+            resultsContainer.innerHTML = '';
+            
+            detections.forEach(detection => {
+                const item = document.createElement('div');
+                item.className = 'detection-item';
+                item.innerHTML = `
+                    <span class="label">${detection.label}</span>
+                    <span class="confidence">${(detection.confidence * 100).toFixed(1)}%</span>
+                `;
+                resultsContainer.appendChild(item);
+            });
+            
+            // 更新检测计数
+            systemData.npu.detectionCount = detections.length;
+            document.getElementById('detectionCount').textContent = detections.length;
+        }
+        
+        // 模拟检测
+        function simulateDetection() {
+            if (!systemData.npu.isRunning) {
+                startInference();
+            }
+            
+            showNotification('目标检测已完成', 'success');
+        }
+        
+        // 切换覆盖层
+        function toggleOverlay() {
+            overlayVisible = !overlayVisible;
+            const overlay = document.getElementById('detectionOverlay');
+            overlay.style.display = overlayVisible ? 'block' : 'none';
+            
+            if (overlayVisible) {
+                drawDetectionBoxes();
+            }
+            
+            showNotification(overlayVisible ? '检测覆盖层已显示' : '检测覆盖层已隐藏', 'info');
+        }
+        
+        // 初始化应用
+        window.onload = init;
+    </script>
+</body>
+</html>

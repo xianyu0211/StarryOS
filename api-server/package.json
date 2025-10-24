@@ -1,0 +1,21 @@
+{
+  "name": "starryos-api-server",
+  "version": "1.0.0",
+  "description": "StarryOS Web Demo API Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "cors": "^2.8.5",
+    "ws": "^8.14.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "keywords": ["starryos", "rk3588", "aiot", "embedded", "websocket"],
+  "author": "StarryOS Team",
+  "license": "MIT"
+}
